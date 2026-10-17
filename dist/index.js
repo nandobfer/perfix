@@ -2,7 +2,6 @@ export { computeScope, defineScopes, isEmptyScope, isWithinScope, matchesDimensi
 export { VIEW_AS_COOKIE, VIEW_AS_HEADER, VIEW_AS_MAX_TABS, VIEW_AS_NONE, VIEW_AS_TAB_COOKIE, accessIncludes, canSimulate, decodeViewAs, decodeViewAsTabMap, encodeViewAs, encodeViewAsTabMap, intersectAccess, intersectScopeDimension, intersectScopeResults, parseViewAs, readViewAs, resolveViewAs, simulatedPermissions, updateViewAsTabMap } from './chunk-WQ4TMPLN.js';
 import { POSICAO_AUSENTE, WILDCARD, expandPermissions, hasPermission } from './chunk-36UT5DI7.js';
 export { POSICAO_AUSENTE, WILDCARD, countNodeLeaves, defineCatalog, expandPermissions, filterPermissionNodes, getNodeState, hasAllPermissions, hasAnyPermission, hasPermission, intersectPermissions, isPermissionLeaf, isWildcard, resolveUserRoles, toRoleLike, toggleNode } from './chunk-36UT5DI7.js';
-export { EMPTY_ASSIGNMENT, assignmentVersion, createAccessControl, createMemoryAssignmentStore, parseAssignment, serializeAssignment } from './chunk-SVMZQVV5.js';
 
 // src/role-order.ts
 function rowId(row) {
@@ -100,4 +99,103 @@ function evaluateRoleAssignment(input) {
   return { status: "ok", cargos: [.../* @__PURE__ */ new Set([...pedidos, ...protegidos])] };
 }
 
-export { NO_POSITION, UNASSIGNABLE_LABELS, aplicarPosicoes, callerPosition, canAssignRole, canManageRole, canManageUser, canReorderRole, evaluateRoleAssignment, getUnassignableRoles, getUngrantableKeys, ordenarPorPosicao, rolePosition };
+// src/assignments.ts
+var EMPTY_ASSIGNMENT = Object.freeze({ roles: Object.freeze([]) });
+function parseAssignment(value, parseExtra) {
+  let raw = value;
+  if (typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return EMPTY_ASSIGNMENT;
+    }
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return EMPTY_ASSIGNMENT;
+  const record = raw;
+  const roles = Array.isArray(record.roles) ? record.roles.filter((id) => typeof id === "string" && id.length > 0) : [];
+  const extra = record.extra === void 0 ? void 0 : parseExtra ? parseExtra(record.extra) : record.extra;
+  return {
+    roles: [...new Set(roles)],
+    ...extra === void 0 ? {} : { extra },
+    ...isVersion(record.version) ? { version: record.version } : {}
+  };
+}
+function isVersion(value) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+function assignmentVersion(assignment) {
+  const version = assignment?.version;
+  return isVersion(version) ? version : 0;
+}
+function serializeAssignment(assignment) {
+  return {
+    roles: [...new Set(assignment.roles)],
+    ...assignment.extra === void 0 ? {} : { extra: assignment.extra },
+    ...isVersion(assignment.version) ? { version: assignment.version } : {}
+  };
+}
+function createMemoryAssignmentStore(initial = {}) {
+  const data = new Map(Object.entries(initial));
+  return {
+    async get(userId) {
+      return data.get(userId) ?? EMPTY_ASSIGNMENT;
+    },
+    async set(userId, assignment) {
+      data.set(userId, parseAssignment(serializeAssignment(assignment)));
+    },
+    async list(predicate) {
+      return [...data.entries()].filter(([, assignment]) => !predicate || predicate(assignment)).map(([userId, assignment]) => ({ userId, assignment }));
+    }
+  };
+}
+function createAccessControl(options) {
+  const { roles, assignments } = options;
+  return {
+    assignments,
+    async load(userId, given) {
+      const assignment = given ?? await assignments.get(userId);
+      const loaded = assignment.roles.length > 0 ? await roles.getRoles(assignment.roles) : [];
+      return { assignment, roles: loaded };
+    }
+  };
+}
+
+// src/fresh-assignment.ts
+var DEFAULT_ASSIGNMENT_NAMESPACE = "perfix";
+function readAssignmentFromClaims(claims, namespace = DEFAULT_ASSIGNMENT_NAMESPACE, parseExtra) {
+  if (!claims || !(namespace in claims)) return null;
+  const value = claims[namespace];
+  if (value === null || value === void 0 || value === "") return null;
+  return parseAssignment(value, parseExtra);
+}
+function createFreshAssignmentResolver(options) {
+  const namespace = options.namespace ?? DEFAULT_ASSIGNMENT_NAMESPACE;
+  const cacheMs = options.cacheMs ?? 3e4;
+  const maxEntries = Math.max(1, options.maxEntries ?? 1e3);
+  const cache = /* @__PURE__ */ new Map();
+  return {
+    async resolve({ userId, claims, minVersion }) {
+      const fromClaims = readAssignmentFromClaims(claims, namespace, options.parseExtra);
+      if (fromClaims && assignmentVersion(fromClaims) >= minVersion) return { assignment: fromClaims, source: "claims" };
+      const cached = cache.get(userId);
+      if (cached && Date.now() - cached.at < cacheMs && assignmentVersion(cached.assignment) >= minVersion) {
+        return { assignment: cached.assignment, source: "cache" };
+      }
+      const assignment = await options.store.get(userId);
+      cache.delete(userId);
+      if (assignmentVersion(assignment) >= minVersion) {
+        cache.set(userId, { at: Date.now(), assignment });
+        if (cache.size > maxEntries) {
+          const oldest = cache.keys().next().value;
+          if (oldest !== void 0) cache.delete(oldest);
+        }
+      }
+      return { assignment, source: "store" };
+    },
+    forget(userId) {
+      cache.delete(userId);
+    }
+  };
+}
+
+export { DEFAULT_ASSIGNMENT_NAMESPACE, EMPTY_ASSIGNMENT, NO_POSITION, UNASSIGNABLE_LABELS, aplicarPosicoes, assignmentVersion, callerPosition, canAssignRole, canManageRole, canManageUser, canReorderRole, createAccessControl, createFreshAssignmentResolver, createMemoryAssignmentStore, evaluateRoleAssignment, getUnassignableRoles, getUngrantableKeys, ordenarPorPosicao, parseAssignment, readAssignmentFromClaims, rolePosition, serializeAssignment };

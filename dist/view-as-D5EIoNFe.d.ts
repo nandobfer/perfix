@@ -1,5 +1,4 @@
-import { E as EffectivePermissions, a as RoleLike } from './permission-set-B6UbcFOx.js';
-import { c as ScopeDimension, g as ScopeResult } from './scopes-Y8Ng1aid.js';
+import { E as EffectivePermissions, a as RoleLike, k as ScopeDimension, o as ScopeResult } from './scopes-CKePgTCJ.js';
 
 /**
  * "Visualizar como": simular um CARGO ou um USUÁRIO.

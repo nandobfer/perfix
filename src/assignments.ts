@@ -1,10 +1,8 @@
 /**
  * ATRIBUIÇÕES do usuário: quais cargos ele tem (e dados extras definidos pela aplicação, como
  * vínculos com empresas/filiais). As DEFINIÇÕES dos cargos ficam sempre no banco da aplicação
- * (`RoleStore`); só as atribuições podem ficar fora dele.
- *
- * Padrão: atribuições nos metadados do Clerk (`@nandobfer/perfix/clerk`). Opt-out: a aplicação
- * passa um `AssignmentStore` próprio (ex.: coleção no Mongo, como no Smart Desk).
+ * (`RoleStore`); as atribuições ficam no `AssignmentStore` fornecido pela aplicação (ex.: coleção
+ * no banco, cache ou memória em testes).
  */
 
 import type { RoleLike } from "./permission-set"
@@ -17,7 +15,7 @@ export interface Assignment<Extra = unknown> {
     /**
      * Versão da atribuição (inteiro >= 0), incrementada pela aplicação a cada gravação. Permite
      * detectar uma cópia desatualizada (ex.: claim do token de sessão) — ver
-     * `createFreshAssignmentResolver` em `@nandobfer/perfix/clerk`. Ausente = 0.
+     * `createFreshAssignmentResolver` na raiz do pacote. Ausente = 0.
      */
     readonly version?: number
 }
@@ -104,8 +102,8 @@ export function createMemoryAssignmentStore<Extra = unknown>(initial: Record<str
 
 export interface AccessControlOptions<Extra> {
     roles: RoleStore
-    /** Store das atribuições. Ausente → obrigatório informar `clerk` (padrão da biblioteca). */
-    assignments?: AssignmentStore<Extra>
+    /** Store das atribuições, fornecido pela aplicação. */
+    assignments: AssignmentStore<Extra>
 }
 
 export interface AccessControl<Extra> {
@@ -115,10 +113,10 @@ export interface AccessControl<Extra> {
 }
 
 /**
- * Liga o store de cargos ao store de atribuições. Use `createClerkAccessControl`
- * (`@nandobfer/perfix/clerk`) para o padrão; passe `assignments` para o opt-out.
+ * Liga o store de cargos ao store de atribuições. A aplicação fornece ambos: as definições de
+ * cargos (`RoleStore`) e a persistência das atribuições (`AssignmentStore`).
  */
-export function createAccessControl<Extra = unknown>(options: Required<AccessControlOptions<Extra>>): AccessControl<Extra> {
+export function createAccessControl<Extra = unknown>(options: AccessControlOptions<Extra>): AccessControl<Extra> {
     const { roles, assignments } = options
     return {
         assignments,

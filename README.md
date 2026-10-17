@@ -5,7 +5,7 @@ cargos, união de cargos, coringa `*`, hierarquia, chaves sensíveis) de forma g
 acrescenta **escopos de dados generalizados**: vários escopos, definidos pela aplicação.
 
 Sem dependências em runtime. React é peer opcional (só para `@nandobfer/perfix/react`).
-Não conhece Mongoose, Clerk nem Next.js.
+Não conhece banco, framework nem provedor de identidade.
 
 ## Distribuição (sem registry)
 
@@ -13,7 +13,7 @@ Não conhece Mongoose, Clerk nem Next.js.
 - Consumo por dependência git:
 
   ```json
-   { "dependencies": { "@nandobfer/perfix": "git+https://github.com/nandobfer/Perfix.git#v0.1.0" } }
+   { "dependencies": { "@nandobfer/perfix": "git+https://github.com/nandobfer/Perfix.git#v0.2.0" } }
   ```
 
 - Sem `NPM_TOKEN`, `.npmrc`, GitHub Packages ou deploy key: o repositório público é consumido via HTTPS.
@@ -36,7 +36,6 @@ Não conhece Mongoose, Clerk nem Next.js.
 | `@nandobfer/perfix` | catálogo, conjuntos de permissão, posições, hierarquia, guardas puras, escopos, "visualizar como" (`resolveViewAs`, interseções, transporte) |
 | `@nandobfer/perfix/server` | `createGuards` (`requirePermission`, `requireAnyPermission`, `requireScope`) e `PermissionError` (401/403) |
 | `@nandobfer/perfix/react` | `PermissionsProvider`, `usePermissions`, `Can`, `ViewAsProvider`, `useViewAs`, `getViewAsHeaderValue` |
-| `@nandobfer/perfix/clerk` | Adapter opcional: `createClerkAssignmentStore`, `createClerkAccessControl`, `createFreshAssignmentResolver`, `readAssignmentFromClaims`, `readAssignmentFromUser` |
 
 ## Uso
 
@@ -171,43 +170,53 @@ const result = await resolveViewAs({
   coringa não é editável.
 - `aplicarPosicoes(rows, ordem)`: posição = índice na lista (0 = topo); ausentes vão para o pé.
 
-### 6. Atribuições (Clerk por padrão, opt-out com store próprio)
+### 6. Atribuições (store da aplicação)
 
 - **Definições de cargos** ficam sempre no banco da aplicação (`RoleStore.getRoles(ids)`).
 - **Atribuições** (`{ roles, extra }`, com `extra` definido pela aplicação — ex.: vínculos com
-  empresas) ficam, por padrão, no `publicMetadata` do Clerk sob `perfix`:
+  empresas) ficam num `AssignmentStore` fornecido pela aplicação. O store é obrigatório:
 
   ```ts
-  import { createClerkAccessControl, readAssignmentFromClaims } from "@nandobfer/perfix/clerk"
-  const access = createClerkAccessControl({ client: clerkClient, roles: meuRoleStore })
-  const given = readAssignmentFromClaims(sessionClaims) // null → lê do Clerk
-  const { assignment, roles } = await access.load(clerkUserId, given ?? undefined)
-  await access.assignments.set(clerkUserId, { roles: ["admin"], extra })
+  import { createAccessControl } from "@nandobfer/perfix"
+
+  const access = createAccessControl({
+      roles: meuRoleStore,
+      assignments: meuAssignmentStore, // ex.: coleção no banco
+  })
+  const { assignment, roles } = await access.load(userId)
+  await access.assignments.set(userId, { roles: ["admin"], extra })
   ```
 
-  Configure a claim no Clerk (Sessions › Customize session token):
-  `{ "perfix": "{{user.public_metadata.perfix}}" }`. Só o servidor escreve; o Clerk mescla o nível de
-  cima do metadado, então outras chaves são preservadas. Mudanças valem ao renovar o token (~60 s).
-  Formato inválido vira atribuição vazia (sem acesso). `list(predicate)` pagina `getUserList` com
-  cache de 30 s (listas por cargo/filial).
+  `createMemoryAssignmentStore` serve a testes e protótipos. `list(predicate)` é opcional no
+  contrato (listas por cargo/escopo); paginação e cache são responsabilidade do store.
+  Formato inválido (`parseAssignment`) vira atribuição vazia — sem acesso.
+- **Claims de sessão (opcional)**: se a aplicação injetar a atribuição no token sob uma chave,
+  `readAssignmentFromClaims` a lê sem consultar o store; ausente → `null`, e o chamador decide
+  reler do store:
+
+  ```ts
+  import { readAssignmentFromClaims } from "@nandobfer/perfix"
+  const given = readAssignmentFromClaims(sessionClaims) // null → lê do store
+  const { assignment, roles } = await access.load(userId, given ?? undefined)
+  ```
+
+  A chave padrão é `perfix`; o segundo argumento escolhe outra.
 - **Revogação imediata (versão)**: a atribuição aceita `version` (inteiro >= 0; ausente = 0).
   A aplicação incrementa a versão a cada gravação e guarda a versão atual numa fonte lida a cada
   requisição (ex.: o perfil no banco). `createFreshAssignmentResolver` usa a claim enquanto ela
   tiver versão >= a exigida; senão relê do store (cache de 30 s chaveado pela versão):
 
   ```ts
-  import { createFreshAssignmentResolver } from "@nandobfer/perfix/clerk"
+  import { createFreshAssignmentResolver } from "@nandobfer/perfix"
   const fresh = createFreshAssignmentResolver({ store: access.assignments })
-  const { assignment } = await fresh.resolve({ userId: clerkUserId, claims: sessionClaims, minVersion: perfil.acessoVersao })
+  const { assignment } = await fresh.resolve({ userId, claims: sessionClaims, minVersion: perfil.acessoVersao })
   // ao gravar: versão nova no banco ($inc) + access.assignments.set(id, { ...atribuicao, version })
   ```
 
   Assim, um acesso retirado deixa de valer na próxima requisição, sem esperar o token renovar.
   `assignmentVersion(a)` devolve a versão (0 quando ausente).
-- **Opt-out**: `createAccessControl({ roles, assignments: meuStore })` com um `AssignmentStore`
-  próprio (ex.: coleção no Mongo, como no Smart Desk). `createMemoryAssignmentStore` serve a testes.
 
 ## Fora da biblioteca (fica na aplicação)
 
 Folhas do domínio, escopos concretos e seus resolvedores, cargos iniciais, persistência dos
-cargos, formato do `extra` e tradução de escopo em consulta.
+cargos e das atribuições, formato do `extra` e tradução de escopo em consulta.
