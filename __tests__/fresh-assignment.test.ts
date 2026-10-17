@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { assignmentVersion, createMemoryAssignmentStore, parseAssignment, serializeAssignment, type AssignmentStore } from "../src"
-import { createFreshAssignmentResolver } from "../src/clerk"
+import {
+    assignmentVersion,
+    createFreshAssignmentResolver,
+    createMemoryAssignmentStore,
+    parseAssignment,
+    readAssignmentFromClaims,
+    serializeAssignment,
+    type AssignmentStore,
+} from "../src"
 
 function spyStore(initial: Record<string, { roles: string[]; version?: number }>) {
     const store = createMemoryAssignmentStore(initial)
@@ -10,6 +17,28 @@ function spyStore(initial: Record<string, { roles: string[]; version?: number }>
 
 afterEach(() => {
     vi.useRealTimers()
+})
+
+describe("readAssignmentFromClaims", () => {
+    it("lê a atribuição do namespace padrão em objeto ou JSON", () => {
+        expect(readAssignmentFromClaims({ perfix: { roles: ["a"] } })).toEqual({ roles: ["a"] })
+        expect(readAssignmentFromClaims({ perfix: '{"roles":["b"]}' })).toEqual({ roles: ["b"] })
+    })
+
+    it("aceita namespace próprio", () => {
+        expect(readAssignmentFromClaims({ acesso: { roles: ["x"] } }, "acesso")).toEqual({ roles: ["x"] })
+    })
+
+    it("sem a claim devolve null", () => {
+        expect(readAssignmentFromClaims({ sub: "u1" })).toBeNull()
+        expect(readAssignmentFromClaims({ perfix: "" })).toBeNull()
+        expect(readAssignmentFromClaims(null)).toBeNull()
+    })
+
+    it("formato inválido vira atribuição vazia (tira acesso)", () => {
+        expect(readAssignmentFromClaims({ perfix: ["a"] })).toEqual({ roles: [] })
+        expect(readAssignmentFromClaims({ perfix: "{quebrado" })).toEqual({ roles: [] })
+    })
 })
 
 describe("versão da atribuição", () => {

@@ -1,8 +1,7 @@
 import * as react from 'react';
 import { ReactNode } from 'react';
-import { a as RoleLike } from '../permission-set-B6UbcFOx.js';
-import { g as ViewAs } from '../view-as-BdEfJN9a.js';
-import '../scopes-Y8Ng1aid.js';
+import { a as RoleLike } from '../scopes-CKePgTCJ.js';
+import { g as ViewAs } from '../view-as-D5EIoNFe.js';
 
 /** Estado guardado na aba: o que é simulado + rótulo para a interface (o servidor ignora o rótulo). */
 interface ViewAsState {

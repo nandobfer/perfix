@@ -1,9 +1,9 @@
 /**
  * Fábricas de guardas de servidor, agnósticas de framework.
  *
- * A aplicação fornece `getAuth()` (ex.: Clerk + banco no CRM) e recebe `requirePermission`,
- * `requireAnyPermission` e `requireScope`, que LANÇAM `PermissionError` com o status HTTP
- * adequado (401/403). A tradução para resposta HTTP fica na aplicação.
+ * A aplicação fornece `getAuth()` (ex.: sessão autenticada + banco da aplicação) e recebe
+ * `requirePermission`, `requireAnyPermission` e `requireScope`, que LANÇAM `PermissionError` com o
+ * status HTTP adequado (401/403). A tradução para resposta HTTP fica na aplicação.
  */
 
 import type { Catalog } from "../catalog"

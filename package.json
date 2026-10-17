@@ -1,6 +1,6 @@
 {
   "name": "@nandobfer/perfix",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Perfix: permissionamento whitelabel com perfis, hierarquia, escopos e simulação de acesso.",
   "repository": "github:nandobfer/Perfix",
   "license": "UNLICENSED",
@@ -25,11 +25,6 @@
       "types": "./dist/react/index.d.ts",
       "import": "./dist/react/index.js",
       "default": "./dist/react/index.js"
-    },
-    "./clerk": {
-      "types": "./dist/clerk/index.d.ts",
-      "import": "./dist/clerk/index.js",
-      "default": "./dist/clerk/index.js"
     }
   },
   "files": [

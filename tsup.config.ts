@@ -5,7 +5,6 @@ export default defineConfig({
         index: "src/index.ts",
         "server/index": "src/server/index.ts",
         "react/index": "src/react/index.tsx",
-        "clerk/index": "src/clerk/index.ts",
     },
     format: ["esm"],
     dts: true,
