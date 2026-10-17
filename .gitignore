@@ -1,0 +1,5 @@
+# dist/ é VERSIONADO de propósito: o pacote é consumido por dependência git por tag.
+node_modules/
+coverage/
+*.log
+.DS_Store
